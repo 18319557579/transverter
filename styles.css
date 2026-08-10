@@ -295,6 +295,17 @@ textarea::placeholder {
   gap: 20px;
 }
 
+.status-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.visualize-button {
+  min-width: 144px;
+}
+
 .status-message {
   display: flex;
   min-width: 0;
@@ -420,8 +431,30 @@ textarea::placeholder {
     font-size: 12px;
   }
 
-  .button-primary {
-    min-width: 96px;
+  .statusbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .status-message {
+    width: 100%;
+  }
+
+  .status-actions {
+    width: 100%;
+  }
+
+  .status-actions .button {
+    min-width: 0;
+  }
+
+  .status-actions .button-secondary {
+    flex: 0 0 104px;
+  }
+
+  .status-actions .visualize-button {
+    flex: 1 1 auto;
   }
 }
 

@@ -11,9 +11,18 @@
   const clearButton = document.querySelector("#clearButton");
   const copyButton = document.querySelector("#copyButton");
   const convertButton = document.querySelector("#convertButton");
+  const visualizeButton = document.querySelector("#visualizeButton");
+
+  const ESJSON_URL = "http://www.esjson.com/jsonviewer.html";
+  const PAGE_MESSAGE_SOURCE = "transverter-page";
+  const EXTENSION_MESSAGE_SOURCE = "transverter-extension";
 
   let convertTimer = null;
   let copyResetTimer = null;
+  let visualizationTimer = null;
+  let extensionReady = false;
+  let activeVisualizationRequest = null;
+  let lastConversionOk = false;
 
   function setStatus(message, tone = "idle") {
     statusText.textContent = message;
@@ -124,9 +133,12 @@
     window.clearTimeout(convertTimer);
     const result = extractJson(sourceInput.value);
     resultOutput.value = result.value;
+    lastConversionOk = result.ok;
     copyButton.disabled = !result.ok;
+    visualizeButton.disabled = !result.ok || Boolean(activeVisualizationRequest);
     setStatus(result.message, result.tone);
     updateCounts();
+    return result;
   }
 
   function resetCopyButton() {
@@ -134,9 +146,7 @@
     copyButton.querySelector("span").textContent = "复制结果";
   }
 
-  async function copyResult() {
-    if (!resultOutput.value) return;
-
+  async function writeResultToClipboard() {
     let copied = false;
     if (navigator.clipboard && window.isSecureContext) {
       try {
@@ -154,12 +164,106 @@
       resultOutput.setSelectionRange(0, 0);
     }
 
+    return copied;
+  }
+
+  async function copyResult() {
+    if (!resultOutput.value) return;
+
+    const copied = await writeResultToClipboard();
+
     if (copied) {
       copyButton.querySelector("span").textContent = "已复制";
       setStatus("结果已复制到剪贴板", "success");
       copyResetTimer = window.setTimeout(resetCopyButton, 1600);
     } else {
       setStatus("复制失败，请选中结果后使用系统复制", "error");
+    }
+  }
+
+  function openEsjsonFallback() {
+    const link = document.createElement("a");
+    link.href = ESJSON_URL;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
+  }
+
+  function createRequestId() {
+    return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function finishVisualization(message, tone) {
+    window.clearTimeout(visualizationTimer);
+    activeVisualizationRequest = null;
+    visualizeButton.disabled = !lastConversionOk;
+    setStatus(message, tone);
+  }
+
+  async function visualizeResult() {
+    const result = convert();
+    if (!result.ok) return;
+
+    const clipboardPromise = writeResultToClipboard().catch(() => false);
+
+    if (!extensionReady) {
+      openEsjsonFallback();
+      const copied = await clipboardPromise;
+      setStatus(
+        copied
+          ? "已打开 ESJSON，扩展未连接，请手动粘贴并点击可视化"
+          : "已打开 ESJSON，请手动粘贴结果并点击可视化",
+        "warning",
+      );
+      return;
+    }
+
+    const requestId = createRequestId();
+    activeVisualizationRequest = requestId;
+    visualizeButton.disabled = true;
+    setStatus("正在打开 ESJSON…", "success");
+    void clipboardPromise;
+
+    window.postMessage(
+      {
+        source: PAGE_MESSAGE_SOURCE,
+        type: "TRANSVERTER_VISUALIZE",
+        requestId,
+        json: result.value,
+      },
+      "*",
+    );
+
+    visualizationTimer = window.setTimeout(() => {
+      if (activeVisualizationRequest === requestId) {
+        finishVisualization("扩展未响应，请检查扩展是否已启用", "error");
+      }
+    }, 45000);
+  }
+
+  function handleExtensionMessage(event) {
+    if (event.source !== window || event.data?.source !== EXTENSION_MESSAGE_SOURCE) return;
+
+    const message = event.data;
+    if (message.type === "TRANSVERTER_EXTENSION_READY") {
+      extensionReady = true;
+      return;
+    }
+
+    if (message.requestId !== activeVisualizationRequest) return;
+
+    if (message.type === "TRANSVERTER_OPENED") {
+      setStatus("已打开 ESJSON，正在生成可视化…", "success");
+      return;
+    }
+
+    if (message.type === "TRANSVERTER_COMPLETE") {
+      finishVisualization("ESJSON 可视化已生成", "success");
+      return;
+    }
+
+    if (message.type === "TRANSVERTER_ERROR") {
+      finishVisualization(message.error || "ESJSON 自动操作失败，结果已复制", "error");
     }
   }
 
@@ -185,7 +289,11 @@
     resetCopyButton();
     sourceInput.value = "";
     resultOutput.value = "";
+    lastConversionOk = false;
     copyButton.disabled = true;
+    visualizeButton.disabled = true;
+    activeVisualizationRequest = null;
+    window.clearTimeout(visualizationTimer);
     setStatus("等待输入", "idle");
     updateCounts();
     sourceInput.focus();
@@ -198,9 +306,12 @@
   });
   convertButton.addEventListener("click", convert);
   copyButton.addEventListener("click", copyResult);
+  visualizeButton.addEventListener("click", visualizeResult);
   pasteButton.addEventListener("click", pasteSource);
   clearButton.addEventListener("click", clearAll);
+  window.addEventListener("message", handleExtensionMessage);
 
   updateCounts();
   sourceInput.focus();
+  window.postMessage({ source: PAGE_MESSAGE_SOURCE, type: "TRANSVERTER_PING" }, "*");
 })();
