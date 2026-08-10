@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>JSON 拼接转换器</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">{ }</span>
+          <div>
+            <h1>JSON 拼接转换器</h1>
+            <p>本地处理</p>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="button button-secondary" id="pasteButton" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+              <path d="M16 4h2a2 2 0 0 1 2 2v4M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"></path>
+              <path d="m16 19 2 2 4-4"></path>
+            </svg>
+            <span>粘贴</span>
+          </button>
+          <button class="icon-button" id="clearButton" type="button" title="清空全部" aria-label="清空全部">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" x2="10" y1="11" y2="17"></line>
+              <line x1="14" x2="14" y1="11" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="editor-panel" aria-labelledby="sourceLabel">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">输入</span>
+              <h2 id="sourceLabel">原始文本</h2>
+            </div>
+            <span class="character-count" id="sourceCount">0 字符</span>
+          </div>
+          <textarea
+            id="sourceInput"
+            aria-label="原始文本"
+            placeholder="在此粘贴 Http result 日志…"
+            spellcheck="false"
+            autocomplete="off"
+            wrap="soft"
+          ></textarea>
+        </section>
+
+        <section class="editor-panel result-panel" aria-labelledby="resultLabel">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">输出</span>
+              <h2 id="resultLabel">转换结果</h2>
+            </div>
+            <div class="result-tools">
+              <span class="character-count" id="resultCount">0 字符</span>
+              <button class="button button-secondary copy-button" id="copyButton" type="button" disabled>
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                </svg>
+                <span>复制结果</span>
+              </button>
+            </div>
+          </div>
+          <textarea
+            id="resultOutput"
+            aria-label="转换结果"
+            placeholder="转换后的 JSON 将显示在这里"
+            spellcheck="false"
+            readonly
+            wrap="soft"
+          ></textarea>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <div class="status-message" id="statusMessage" data-tone="idle" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="statusText">等待输入</span>
+        </div>
+        <button class="button button-primary" id="convertButton" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path>
+            <path d="M5 3v4"></path>
+            <path d="M19 17v4"></path>
+            <path d="M3 5h4"></path>
+            <path d="M17 19h4"></path>
+          </svg>
+          <span>转换</span>
+        </button>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
