@@ -13,14 +13,13 @@
   const convertButton = document.querySelector("#convertButton");
   const visualizeButton = document.querySelector("#visualizeButton");
 
-  const ESJSON_URL = "http://www.esjson.com/jsonviewer.html";
-  const PAGE_MESSAGE_SOURCE = "transverter-page";
-  const EXTENSION_MESSAGE_SOURCE = "transverter-extension";
+  const VIEWER_MESSAGE_SOURCE = "transverter-viewer";
+  const PAGE_MESSAGE_SOURCE = "transverter-converter";
 
   let convertTimer = null;
   let copyResetTimer = null;
   let visualizationTimer = null;
-  let extensionReady = false;
+  let visualizationCloseTimer = null;
   let activeVisualizationRequest = null;
   let lastConversionOk = false;
 
@@ -146,11 +145,11 @@
     copyButton.querySelector("span").textContent = "复制结果";
   }
 
-  async function writeResultToClipboard() {
+  async function writeResultToClipboard(text = resultOutput.value) {
     let copied = false;
     if (navigator.clipboard && window.isSecureContext) {
       try {
-        await navigator.clipboard.writeText(resultOutput.value);
+        await navigator.clipboard.writeText(text);
         copied = true;
       } catch {
         copied = false;
@@ -158,10 +157,16 @@
     }
 
     if (!copied) {
-      resultOutput.focus();
-      resultOutput.select();
-      copied = document.execCommand("copy");
-      resultOutput.setSelectionRange(0, 0);
+      const previousFocus = document.activeElement;
+      const temporary = document.createElement("textarea");
+      temporary.value = text;
+      temporary.setAttribute("readonly", "");
+      temporary.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+      document.body.appendChild(temporary);
+      temporary.select();
+      try { copied = document.execCommand("copy"); } catch { copied = false; }
+      temporary.remove();
+      previousFocus?.focus();
     }
 
     return copied;
@@ -181,89 +186,66 @@
     }
   }
 
-  function openEsjsonFallback() {
-    const link = document.createElement("a");
-    link.href = ESJSON_URL;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.click();
-  }
-
   function createRequestId() {
     return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   function finishVisualization(message, tone) {
     window.clearTimeout(visualizationTimer);
+    window.clearInterval(visualizationCloseTimer);
     activeVisualizationRequest = null;
     visualizeButton.disabled = !lastConversionOk;
     setStatus(message, tone);
   }
 
-  async function visualizeResult() {
+  function visualizeResult() {
     const result = convert();
     if (!result.ok) return;
+    if (activeVisualizationRequest) return;
+    const requestId = createRequestId();
+    const url = new URL("jsonviewer.html", window.location.href);
+    url.hash = new URLSearchParams({ request: requestId }).toString();
 
-    const clipboardPromise = writeResultToClipboard().catch(() => false);
-
-    if (!extensionReady) {
-      openEsjsonFallback();
-      const copied = await clipboardPromise;
-      setStatus(
-        copied
-          ? "已打开 ESJSON，扩展未连接，请手动粘贴并点击可视化"
-          : "已打开 ESJSON，请手动粘贴结果并点击可视化",
-        "warning",
-      );
+    // 必须在点击事件内同步打开窗口，避免等待剪贴板权限后被浏览器拦截。
+    const targetWindow = window.open(url.href, "_blank");
+    void writeResultToClipboard(result.value).catch(() => false);
+    if (!targetWindow) {
+      setStatus("新窗口被浏览器阻止，请允许弹窗，或打开 JSON 可视化页后粘贴结果", "warning");
       return;
     }
-
-    const requestId = createRequestId();
-    activeVisualizationRequest = requestId;
+    activeVisualizationRequest = { requestId, targetWindow, json: result.value, sent: false };
     visualizeButton.disabled = true;
-    setStatus("正在打开 ESJSON…", "success");
-    void clipboardPromise;
-
-    window.postMessage(
-      {
-        source: PAGE_MESSAGE_SOURCE,
-        type: "TRANSVERTER_VISUALIZE",
-        requestId,
-        json: result.value,
-      },
-      "*",
-    );
-
+    setStatus("正在打开本地 JSON 可视化页…", "success");
     visualizationTimer = window.setTimeout(() => {
-      if (activeVisualizationRequest === requestId) {
-        finishVisualization("扩展未响应，请检查扩展是否已启用", "error");
+      if (activeVisualizationRequest?.requestId === requestId) {
+        finishVisualization("传入结果超时，请在可视化页手动粘贴，或重试跳转", "error");
       }
-    }, 45000);
+    }, 15000);
+    visualizationCloseTimer = window.setInterval(() => {
+      if (targetWindow.closed) finishVisualization("可视化页已关闭，转换结果仍可复制", "warning");
+    }, 300);
   }
 
-  function handleExtensionMessage(event) {
-    if (event.source !== window || event.data?.source !== EXTENSION_MESSAGE_SOURCE) return;
-
+  function handleViewerMessage(event) {
+    const request = activeVisualizationRequest;
+    if (!request || event.source !== request.targetWindow || event.data?.source !== VIEWER_MESSAGE_SOURCE) return;
+    const expectedOrigin = window.location.protocol === "file:" ? "null" : window.location.origin;
+    if (event.origin !== expectedOrigin || event.data.requestId !== request.requestId) return;
     const message = event.data;
-    if (message.type === "TRANSVERTER_EXTENSION_READY") {
-      extensionReady = true;
+    if (message.type === "READY" && !request.sent) {
+      request.sent = true;
+      // file:// 的 origin 为 null，用窗口引用和一次性标识验证，正文不进入 URL。
+      request.targetWindow.postMessage({
+        source: PAGE_MESSAGE_SOURCE,
+        type: "PAYLOAD",
+        requestId: request.requestId,
+        json: request.json,
+      }, expectedOrigin === "null" ? "*" : expectedOrigin);
+      setStatus("已打开本地页面，正在生成可视化…", "success");
       return;
     }
-
-    if (message.requestId !== activeVisualizationRequest) return;
-
-    if (message.type === "TRANSVERTER_OPENED") {
-      setStatus("已打开 ESJSON，正在生成可视化…", "success");
-      return;
-    }
-
-    if (message.type === "TRANSVERTER_COMPLETE") {
-      finishVisualization("ESJSON 可视化已生成", "success");
-      return;
-    }
-
-    if (message.type === "TRANSVERTER_ERROR") {
-      finishVisualization(message.error || "ESJSON 自动操作失败，结果已复制", "error");
+    if (message.type === "COMPLETE") {
+      finishVisualization(message.ok ? "JSON 可视化已生成" : (message.error || "可视化失败，请手动粘贴或重试"), message.ok ? "success" : "error");
     }
   }
 
@@ -294,6 +276,7 @@
     visualizeButton.disabled = true;
     activeVisualizationRequest = null;
     window.clearTimeout(visualizationTimer);
+    window.clearInterval(visualizationCloseTimer);
     setStatus("等待输入", "idle");
     updateCounts();
     sourceInput.focus();
@@ -309,9 +292,8 @@
   visualizeButton.addEventListener("click", visualizeResult);
   pasteButton.addEventListener("click", pasteSource);
   clearButton.addEventListener("click", clearAll);
-  window.addEventListener("message", handleExtensionMessage);
+  window.addEventListener("message", handleViewerMessage);
 
   updateCounts();
   sourceInput.focus();
-  window.postMessage({ source: PAGE_MESSAGE_SOURCE, type: "TRANSVERTER_PING" }, "*");
 })();

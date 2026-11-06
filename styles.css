@@ -137,6 +137,7 @@ button {
 .button {
   gap: 8px;
   padding: 0 14px;
+  text-decoration: none;
 }
 
 .icon-button {
