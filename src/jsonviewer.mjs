@@ -4,7 +4,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory } 
 import { syntaxHighlighting, HighlightStyle, indentUnit, bracketMatching, syntaxTree, codeFolding, foldGutter, foldKeymap, foldCode, foldable, foldEffect, unfoldEffect, foldedRanges, unfoldAll } from "@codemirror/language";
 import { json } from "@codemirror/lang-json";
 import { tags } from "@lezer/highlight";
-import { formatTokens, getHttpLink, getTimestampPreview, formatByteSize } from "./json-tools.mjs";
+import { formatTokens, getHttpLink, getTimestampPreview, getColorPreview, formatByteSize } from "./json-tools.mjs";
 import { createDocumentAnalysisCache, subtreeFoldEffects, unfoldEditedContainers, nextFoldTarget } from "./json-folding.mjs";
 
 const statusButton = document.querySelector("#validationStatus");
@@ -17,6 +17,7 @@ const copyButton = document.querySelector("#copyButton");
 const expandNextButton = document.querySelector("#expandNextButton");
 const imagePreview = document.querySelector("#imagePreview");
 const timestampPreview = document.querySelector("#timestampPreview");
+const colorPreview = document.querySelector("#colorPreview");
 const analyzeDocument = createDocumentAnalysisCache();
 let validationTimer, copyResetTimer;
 let lastError = null;
@@ -44,6 +45,8 @@ function hidePreview() {
   imagePreview.replaceChildren();
   timestampPreview.hidden = true;
   timestampPreview.textContent = "";
+  colorPreview.hidden = true;
+  colorPreview.replaceChildren();
 }
 
 function positionPreview() {
@@ -98,6 +101,23 @@ function showTimestampPreview(element, event) {
   });
 }
 
+function showColorPreview(element, event) {
+  const color = element.dataset.jsonColor;
+  queuePreview(`color:${element.dataset.jsonOffset}:${color}`, event, () => {
+    const checkerboard = document.createElement("div");
+    checkerboard.className = "color-preview-checkerboard";
+    const swatch = document.createElement("div");
+    swatch.className = "color-preview-swatch";
+    swatch.style.backgroundColor = color;
+    checkerboard.appendChild(swatch);
+    colorPreview.replaceChildren(checkerboard);
+    colorPreview.setAttribute("aria-label", `颜色预览 ${element.textContent}`);
+    activePreview = colorPreview;
+    colorPreview.hidden = false;
+    positionPreview();
+  });
+}
+
 function linkElement(target) {
   return target instanceof Element ? target.closest(".cm-json-link") : null;
 }
@@ -129,9 +149,16 @@ function editorDecorations(view) {
           return;
         }
         const url = getHttpLink(raw);
-        if (url && node.to - node.from > 2) decorations.push(Decoration.mark({
-          class: "cm-json-link", attributes: { "data-json-url": url, title: "Ctrl+点击打开链接" },
-        }).range(node.from + 1, node.to - 1));
+        if (url && node.to - node.from > 2) {
+          decorations.push(Decoration.mark({
+            class: "cm-json-link", attributes: { "data-json-url": url, title: "Ctrl+点击打开链接" },
+          }).range(node.from + 1, node.to - 1));
+          return;
+        }
+        const color = getColorPreview(raw);
+        if (color) decorations.push(Decoration.mark({
+          class: "cm-json-color", attributes: { "data-json-color": color, "data-json-offset": String(node.from) },
+        }).range(node.from, node.to));
       },
     });
   }
@@ -266,8 +293,9 @@ const editor = new EditorView({
           const link = linkElement(event.target);
           if (link) showLinkPreview(link.dataset.jsonUrl, event);
           else {
-            const timestamp = event.target instanceof Element ? event.target.closest(".cm-json-timestamp") : null;
-            if (timestamp) showTimestampPreview(timestamp, event);
+            const value = event.target instanceof Element ? event.target.closest(".cm-json-color, .cm-json-timestamp") : null;
+            if (value?.classList.contains("cm-json-color")) showColorPreview(value, event);
+            else if (value) showTimestampPreview(value, event);
             else hidePreview();
           }
         },

@@ -244,3 +244,35 @@ export function getHttpLink(rawString) {
     return null;
   }
 }
+
+const namedColors = new Set((
+  "aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood " +
+  "cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray " +
+  "darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen " +
+  "darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue " +
+  "firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew " +
+  "hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan " +
+  "lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray " +
+  "lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue " +
+  "mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred " +
+  "midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid " +
+  "palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple " +
+  "rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue " +
+  "slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato transparent turquoise violet " +
+  "wheat white whitesmoke yellow yellowgreen"
+).split(" "));
+
+export function getColorPreview(rawString, supportsColor = (color) => globalThis.CSS?.supports("color", color) ?? false) {
+  let value;
+  try { value = JSON.parse(rawString); } catch { return null; }
+  if (typeof value !== "string") return null;
+  const color = value.trim().toLowerCase();
+  if (/^#[\da-f]{8}$/.test(color)) {
+    // 8 位值约定为 Android ARGB，仅在预览时换成浏览器使用的 RGBA 顺序。
+    return `#${color.slice(3)}${color.slice(1, 3)}`;
+  }
+  if (/^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6})$/.test(color) || namedColors.has(color)) return color;
+  // 限定为独立的数值颜色，避免 CSS.supports 接受 var()、currentColor 或系统颜色。
+  if (/^(?:rgba?|hsla?)\((?:[-+.\de,%/\s]|deg|grad|rad|turn|none)+\)$/.test(color) && supportsColor(color)) return color;
+  return null;
+}

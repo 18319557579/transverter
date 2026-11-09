@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatJson, minifyJson, parseJsonTokens, validateJson, getHttpLink, getTimestampPreview, getUtf8ByteLength, formatByteSize } from "../src/json-tools.mjs";
+import { formatJson, minifyJson, parseJsonTokens, validateJson, getHttpLink, getTimestampPreview, getColorPreview, getUtf8ByteLength, formatByteSize } from "../src/json-tools.mjs";
 
 test("formatting preserves numeric spelling, duplicate keys, key order and escaped strings", () => {
   const input = '{"10":900719925474099312345,"2":-0,"same":1e+400,"same":2,"text":"中文😀 \\u4e2d \\/ \\\" {} [] \\n","empty":[{},[]]}';
@@ -96,6 +96,54 @@ test("timestamp previews recognize only 10/13-digit positive integer literals in
   for (const raw of ['"1793350534"', "179335053", "17933505340", "17933505340000", "0", "-1793350534",
     "1793350534.0", "1.793350534e9", "1793350534e0", "0179335053", "1793350534 ", "900719925474099312345"]) {
     assert.equal(getTimestampPreview(raw), null, raw);
+  }
+});
+
+test("color previews recognize exact CSS hex lengths and decode Android ARGB", () => {
+  for (const [value, expected] of [["#f00", "#f00"], ["#F008", "#f008"], ["#12AB34", "#12ab34"],
+    ["#80FF0000", "#ff000080"], ["#FF123456", "#123456ff"], ["#00123456", "#12345600"],
+    ["#00000000", "#00000000"], ["#FF000080", "#000080ff"]]) {
+    assert.equal(getColorPreview(JSON.stringify(value)), expected, value);
+  }
+  for (const value of ["#", "#f", "#ff", "#12345", "#1234567", "#123456789", "#ggg", "ff0000", "0x80FF0000"]) {
+    assert.equal(getColorPreview(JSON.stringify(value)), null, value);
+  }
+});
+
+test("color previews decode JSON escapes and recognize case-insensitive named and transparent colors", () => {
+  assert.equal(getColorPreview('"\\u002380FF0000"'), "#ff000080");
+  assert.equal(getColorPreview('"r\\u0065d"'), "red");
+  for (const value of ["RED", "RebeccaPurple", "lightgoldenrodyellow", "darkslategrey", "transparent", "  #F00 \t"]) {
+    assert.equal(getColorPreview(JSON.stringify(value)), value.trim().toLowerCase(), value);
+  }
+});
+
+test("numeric RGB and HSL colors delegate grammar validation to the browser", () => {
+  const colors = ["rgb(255, 0, 0)", "rgba(255, 0, 0, 0.5)", "rgb(100% 0% 0% / 50%)",
+    "hsl(120, 100%, 50%)", "hsla(120, 100%, 50%, .5)", "hsl(.5turn 100% 50% / 50%)",
+    "hsl(3.14rad 100% 50%)", "hsl(200grad 100% 50%)", "rgb(none 0 0 / none)", "rgb(1e2 0 0 / 5e-1)"];
+  for (const color of colors) {
+    let validated = null;
+    assert.equal(getColorPreview(JSON.stringify(color.toUpperCase()), candidate => {
+      validated = candidate;
+      return true;
+    }), color);
+    assert.equal(validated, color);
+  }
+  for (const color of ["rgb(255 0)", "rgba(1, 2, 3,)", "hsl(120, 50, 50)"]) {
+    assert.equal(getColorPreview(JSON.stringify(color), () => false), null, color);
+  }
+});
+
+test("color previews reject other JSON types, surrounding text and context-dependent CSS", () => {
+  for (const raw of ["123", "-65536", "true", "false", "null", "{}", "[]", '["red"]', '"unterminated', '"\\x23f00"']) {
+    assert.equal(getColorPreview(raw, () => true), null, raw);
+  }
+  for (const color of ["", "ordinary text", "prefix #f00", "red blue", "https://example.com/#f00", "1793350534",
+    "currentColor", "inherit", "initial", "unset", "revert", "revert-layer", "CanvasText", "ButtonFace",
+    "var(--brand)", "env(color)", "rgb(from red r g b)", "rgba(0, 0, 0, var(--alpha))", "hsl(calc(120) 100% 50%)",
+    "color(display-p3 1 0 0)", "rgb(255, 0, 0); background: red"]) {
+    assert.equal(getColorPreview(JSON.stringify(color), () => { throw new Error("Context-dependent value reached CSS validation"); }), null, color);
   }
 });
 
