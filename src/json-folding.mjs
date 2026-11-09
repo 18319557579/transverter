@@ -1,5 +1,5 @@
 import { EditorState } from "@codemirror/state";
-import { foldedRanges, unfoldEffect } from "@codemirror/language";
+import { foldedRanges, foldEffect, unfoldEffect, syntaxTree } from "@codemirror/language";
 import { validateJson, indexJsonContainers, getUtf8ByteLength } from "./json-tools.mjs";
 
 export function createDocumentAnalysisCache() {
@@ -15,6 +15,39 @@ export function createDocumentAnalysisCache() {
     }
     return cached;
   };
+}
+
+export function subtreeFoldEffects(state, range, analyzeDocument) {
+  const folded = new Set();
+  foldedRanges(state).between(range.from, range.to, (from, to) => folded.add(`${from}:${to}`));
+  const ranges = new Map();
+  const add = (from, to) => {
+    const key = `${from}:${to}`;
+    if (from >= range.from && to <= range.to && from < to && !folded.has(key)) ranges.set(key, { from, to });
+  };
+  const analysis = analyzeDocument(state);
+  if (analysis.result.ok) {
+    // 索引包含所有层级和行内容器，一次遍历即可收起整棵子树。
+    for (const container of analysis.containers.values()) {
+      if (container.from > range.to) break;
+      if (container.count > 0) add(container.from, container.to);
+    }
+  } else {
+    // 编辑中的 JSON 可能不完整，只使用语法树中首尾括号完整的非空容器。
+    syntaxTree(state).iterate({
+      from: Math.max(0, range.from - 1), to: Math.min(state.doc.length, range.to + 1),
+      enter(node) {
+        if (node.name !== "Object" && node.name !== "Array") return;
+        const first = node.node.firstChild, last = node.node.lastChild;
+        const object = node.name === "Object";
+        if (first?.name === (object ? "{" : "[") && last?.name === (object ? "}" : "]") &&
+            first.nextSibling?.from < last.from) add(first.to, last.from);
+      },
+    });
+  }
+  // CodeMirror 要求同一事务中的折叠范围按起点排列；已折叠范围不重复提交。
+  return [...ranges.values()].sort((left, right) => left.from - right.from || right.to - left.to)
+    .map((value) => foldEffect.of(value));
 }
 
 // 输入、粘贴或外部修改触及隐藏内容时先展开，避免旧的计数留在占位符中。

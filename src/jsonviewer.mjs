@@ -1,11 +1,11 @@
 import { EditorState, Transaction } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, keymap, lineNumbers, drawSelection, highlightSpecialChars, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory } from "@codemirror/commands";
-import { syntaxHighlighting, HighlightStyle, indentUnit, bracketMatching, syntaxTree, codeFolding, foldGutter, foldKeymap, foldEffect, unfoldEffect, foldedRanges, unfoldAll } from "@codemirror/language";
+import { syntaxHighlighting, HighlightStyle, indentUnit, bracketMatching, syntaxTree, codeFolding, foldGutter, foldKeymap, foldCode, foldable, foldEffect, unfoldEffect, foldedRanges, unfoldAll } from "@codemirror/language";
 import { json } from "@codemirror/lang-json";
 import { tags } from "@lezer/highlight";
 import { formatTokens, getHttpLink, getTimestampPreview, formatByteSize } from "./json-tools.mjs";
-import { createDocumentAnalysisCache, unfoldEditedContainers, nextFoldTarget } from "./json-folding.mjs";
+import { createDocumentAnalysisCache, subtreeFoldEffects, unfoldEditedContainers, nextFoldTarget } from "./json-folding.mjs";
 
 const statusButton = document.querySelector("#validationStatus");
 const statusText = document.querySelector("#statusText");
@@ -193,6 +193,25 @@ function foldMarker(open) {
   return marker;
 }
 
+function collapseSubtree(view, range) {
+  const effects = subtreeFoldEffects(view.state, range, analyzeDocument);
+  if (!effects.length) return false;
+  const fromLine = view.state.doc.lineAt(range.from).number;
+  const toLine = view.state.doc.lineAt(range.to).number;
+  effects.push(EditorView.announce.of(`${view.state.phrase("Folded lines")} ${fromLine} ${view.state.phrase("to")} ${toLine}.`));
+  view.dispatch({ effects });
+  return true;
+}
+
+function collapseSelectedSubtree(view) {
+  for (const { head } of view.state.selection.ranges) {
+    const line = view.lineBlockAt(head);
+    const range = foldable(view.state, line.from, line.to);
+    if (range) return collapseSubtree(view, range);
+  }
+  return false;
+}
+
 const editor = new EditorView({
   parent: document.querySelector("#editor"),
   state: EditorState.create({
@@ -220,11 +239,27 @@ const editor = new EditorView({
           return element;
         },
       }),
-      foldGutter({ markerDOM: foldMarker }), unfoldEditedContainers,
+      foldGutter({
+        markerDOM: foldMarker,
+        domEventHandlers: {
+          click(view, line) {
+            let folded = false;
+            foldedRanges(view.state).between(line.from, line.to, () => { folded = true; });
+            // 展开仍交给原生逻辑，只解除当前节点，保留下级的折叠状态。
+            if (folded) return false;
+            const range = foldable(view.state, line.from, line.to);
+            if (!range) return false;
+            collapseSubtree(view, range);
+            return true;
+          },
+        },
+      }), unfoldEditedContainers,
       keymap.of([
         { key: "Mod-Enter", run: () => { visualize(); return true; } },
         { key: "Ctrl-Alt-[", run: () => { collapseEverything(); return true; } },
-        ...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab,
+        ...defaultKeymap, ...historyKeymap,
+        ...foldKeymap.map((binding) => binding.run === foldCode ? { ...binding, run: collapseSelectedSubtree } : binding),
+        indentWithTab,
       ]), decorationPlugin,
       EditorView.domEventHandlers({
         mousemove(event) {
