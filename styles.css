@@ -1,26 +1,58 @@
 :root {
-  color: #1d2523;
-  background: #f3f5f4;
+  color-scheme: dark;
+  color: var(--ink);
+  background: var(--page);
   font-family:
     Inter, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui,
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
-  --ink: #1d2523;
-  --muted: #6c7572;
-  --line: #d7ddda;
-  --line-strong: #bcc7c3;
-  --surface: #ffffff;
-  --surface-subtle: #f8f9f8;
-  --accent: #087f6d;
-  --accent-dark: #056657;
-  --success: #087f6d;
-  --warning: #a65d0c;
-  --danger: #c43d4b;
-  --focus: rgba(8, 127, 109, 0.18);
+  --page: #18232c;
+  --ink: #d5e0e8;
+  --muted: #96a8b4;
+  --line: #34434e;
+  --line-strong: #536773;
+  --surface: #1d2b35;
+  --surface-subtle: #1b2832;
+  --surface-header: #202f3a;
+  --surface-hover: #293d4a;
+  --accent: #61d7c0;
+  --accent-hover: #7de4d0;
+  --accent-ink: #122b29;
+  --success: #74cfac;
+  --warning: #e7bd77;
+  --danger: #ff9c9c;
+  --focus: rgba(97, 215, 192, 0.22);
+  --selection: #395568;
+  --scrollbar: #627886;
+  scrollbar-color: var(--scrollbar) var(--surface);
 }
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  color: var(--ink);
+  background: var(--selection);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid var(--surface);
+  border-radius: 8px;
+  background: var(--scrollbar);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 html,
@@ -33,7 +65,7 @@ body {
 body {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #f3f5f4;
+  background: var(--page);
 }
 
 button,
@@ -76,9 +108,9 @@ button {
   width: 38px;
   height: 38px;
   place-items: center;
-  border: 1px solid #086f61;
+  border: 1px solid var(--accent);
   border-radius: 7px;
-  color: #ffffff;
+  color: var(--accent-ink);
   background: var(--accent);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 14px;
@@ -143,7 +175,7 @@ button {
 .icon-button {
   width: 38px;
   padding: 0;
-  color: #55605d;
+  color: var(--muted);
   border-color: var(--line);
   background: var(--surface);
 }
@@ -161,40 +193,43 @@ button {
 }
 
 .button-secondary {
-  color: #34403d;
+  color: var(--ink);
   border-color: var(--line);
   background: var(--surface);
 }
 
 .button-secondary:hover:not(:disabled),
 .icon-button:hover:not(:disabled) {
+  color: var(--ink);
   border-color: var(--line-strong);
-  background: #eef2f0;
+  background: var(--surface-hover);
 }
 
 .button-primary {
   min-width: 104px;
-  color: #ffffff;
+  color: var(--accent-ink);
   border-color: var(--accent);
   background: var(--accent);
 }
 
 .button-primary:hover:not(:disabled) {
-  border-color: var(--accent-dark);
-  background: var(--accent-dark);
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
 }
 
 .button:focus-visible,
-.icon-button:focus-visible,
-textarea:focus-visible {
-  outline: none;
+.icon-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
   box-shadow: 0 0 0 3px var(--focus);
 }
 
 .button:disabled,
 .icon-button:disabled {
   cursor: not-allowed;
-  opacity: 0.46;
+  color: var(--muted);
+  border-color: var(--line);
+  background: var(--surface-header);
 }
 
 .workspace {
@@ -205,7 +240,7 @@ textarea:focus-visible {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 8px 30px rgba(30, 48, 43, 0.06);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
 
 .editor-panel {
@@ -228,6 +263,7 @@ textarea:focus-visible {
   padding: 12px 16px;
   gap: 16px;
   border-bottom: 1px solid var(--line);
+  background: var(--surface-header);
 }
 
 .panel-kicker {
@@ -267,8 +303,9 @@ textarea {
   padding: 18px;
   border: 0;
   border-radius: 0;
-  color: #202725;
+  color: var(--ink);
   background: transparent;
+  caret-color: var(--accent);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 13px;
   line-height: 1.7;
@@ -280,11 +317,17 @@ textarea {
 }
 
 textarea::placeholder {
-  color: #9ba39f;
+  color: var(--muted);
+  opacity: 1;
+}
+
+textarea:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 #resultOutput {
-  color: #18332e;
+  color: #cbe9e2;
 }
 
 .statusbar {
@@ -322,7 +365,7 @@ textarea::placeholder {
   height: 8px;
   flex: 0 0 8px;
   border-radius: 50%;
-  background: #98a29e;
+  background: var(--muted);
 }
 
 .status-message[data-tone="success"] {
@@ -375,7 +418,6 @@ textarea::placeholder {
 
   .workspace {
     grid-template-columns: 1fr;
-    overflow: visible;
   }
 
   .editor-panel {
