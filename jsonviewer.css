@@ -87,6 +87,10 @@ button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke
 .document-stats { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 4px 12px; max-width: 100%; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .document-stats > span { white-space: nowrap; }
 #editor { min-height: 0; min-width: 0; overflow: hidden; }
+#editor .cm-gutters, #editor .cm-gutters * {
+  -webkit-user-select: none;
+  user-select: none;
+}
 .cm-foldControl { display: flex; align-items: center; justify-content: center; width: 24px; height: 100%; min-height: 16px; line-height: 1; }
 .cm-foldControl svg { display: block; flex: 0 0 16px; }
 .cm-json-link, .cm-json-link span { color: #67b3ff !important; }
